@@ -21,26 +21,22 @@ from .objects.visits import Visits
 from .objects.visitors import Visitors
 from .objects.visitoractivities import VisitorActivities
 from .objects.campaigns import Campaigns
-
 from .errors import PardotAPIError
-
-# Issue #1 (http://code.google.com/p/pybing/issues/detail?id=1)
-# Python 2.6 has json built in, 2.5 needs simplejson
-try:
-    import json
-except ImportError:
-    import simplejson as json
+import os
+from flask import Flask, redirect, request, jsonify, render_template, session
+from requests_oauthlib import OAuth2Session
+import collections
 
 BASE_URI = 'https://pi.pardot.com'
 
-
 class PardotAPI(object):
-    def __init__(self, email, password, user_key, version=4):
-        self.email = email
-        self.password = password
-        self.user_key = user_key
-        self.api_key = None
+    def __init__(self, client_id, client_secret, redirect_uri, version=4):
+        self.client_id = 3MVG9vrJTfRxlfl5mE9P222f0lPVcbroMn_i_eLgYtu_MTF2IBouHStVrA5nd5zSJTkSR1AHMe_U5ZUip6Len
+        self.client_secret = C936BFCFED42379E749DDC26FC3F754082790DF4C83193C3BB8DC27D5885371B
+        self.redirect_uri = https://pardotdashboard-7fc843d1f87a.herokuapp.com/callback
         self.version = version
+        self.oauth = OAuth2Session(client_id, redirect_uri=redirect_uri)
+        self.api_key = None
         self.accounts = Accounts(self)
         self.campaigns = Campaigns(self)
         self.customfields = CustomFields(self)
@@ -64,109 +60,15 @@ class PardotAPI(object):
         self.visitors = Visitors(self)
         self.visitoractivities = VisitorActivities(self)
 
-    def post(self, object_name, path=None, params=None, retries=0):
-        """
-        Makes a POST request to the API. Checks for invalid requests that raise PardotAPIErrors. If the API key is
-        invalid, one re-authentication request is made, in case the key has simply expired. If no errors are raised,
-        returns either the JSON response, or if no JSON was returned, returns the HTTP response status code.
-        """
-        if params is None:
-            params = {}
-        params.update({'user_key': self.user_key, 'api_key': self.api_key, 'format': 'json'})
-        try:
-            self._check_auth(object_name=object_name)
-            request = requests.post(self._full_path(object_name, self.version, path), data=params)
-            response = self._check_response(request)
-            return response
-        except PardotAPIError as err:
-            if err.message == 'Invalid API key or user key':
-                response = self._handle_expired_api_key(err, retries, 'post', object_name, path, params)
-                return response
-            else:
-                raise err
-
-    def get(self, object_name, path=None, params=None, retries=0):
-        """
-        Makes a GET request to the API. Checks for invalid requests that raise PardotAPIErrors. If the API key is
-        invalid, one re-authentication request is made, in case the key has simply expired. If no errors are raised,
-        returns either the JSON response, or if no JSON was returned, returns the HTTP response status code.
-        """
-        if params is None:
-            params = {}
-        params.update({'format': 'json'})
-        headers = self._build_auth_header()
-        try:
-            self._check_auth(object_name=object_name)
-            request = requests.get(self._full_path(object_name, self.version, path), params=params, headers=headers)
-            response = self._check_response(request)
-            return response
-        except PardotAPIError as err:
-            if err.message == 'Invalid API key or user key':
-                response = self._handle_expired_api_key(err, retries, 'get', object_name, path, params)
-                return response
-            else:
-                raise err
-
-    def _handle_expired_api_key(self, err, retries, method, object_name, path, params):
-        """
-        Tries to refresh an expired API key and re-issue the HTTP request. If the refresh has already been attempted,
-        an error is raised.
-        """
-        if retries != 0:
-            raise err
-        self.api_key = None
-        if self.authenticate():
-            response = getattr(self, method)(object_name=object_name, path=path, params=params, retries=1)
-            return response
-        else:
-            raise err
-
-    @staticmethod
-    def _full_path(object_name, version, path=None):
-        """Builds the full path for the API request"""
-        full = '{0}/api/{1}/version/{2}'.format(BASE_URI, object_name, version)
-        if path:
-            return full + '{0}'.format(path)
-        return full
-
-    @staticmethod
-    def _check_response(response):
-        """
-        Checks the HTTP response to see if it contains JSON. If it does, checks the JSON for error codes and messages.
-        Raises PardotAPIError if an error was found. If no error was found, returns the JSON. If JSON was not found,
-        returns the response status code.
-        """
-        if response.headers.get('content-type') == 'application/json':
-            json = response.json()
-            error = json.get('err')
-            if error:
-                raise PardotAPIError(json_response=json)
-            return json
-        else:
-            return response.status_code
-
-    def _check_auth(self, object_name):
-        if object_name == 'login':
-            return
-        if self.api_key is None:
-            self.authenticate()
-
     def authenticate(self):
-        """
-         Authenticates the user and sets the API key if successful. Returns True if authentication is successful,
-         False if authentication fails.
-        """
-        try:
-            auth = self.post('login', params={'email': self.email, 'password': self.password})
-            if type(auth) is int:
-                # sometimes the self.post method will return a status code instead of JSON response on failures
-                return False
-            self.api_key = auth.get('api_key', None)
-            if self.api_key is not None:
-                return True
-            return False
-        except PardotAPIError:
-            return False
+        authorization_url, state = self.oauth.authorization_url(authorization_base_url)
+        session['oauth_state'] = state
+        return redirect(authorization_url)
+        
+    def callback(self):
+        self.oauth.fetch_token(token_url, client_secret=self.client_secret,
+                               authorization_response=request.url)
+        self.api_key = self.oauth.access_token
 
     def _build_auth_header(self):
         """
