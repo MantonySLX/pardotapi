@@ -1,0 +1,45 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SSO with Salesforce</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f2f2f2;
+        }
+        .container {
+            text-align: center;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Single Sign-On (SSO) with Salesforce</h2>
+        <p>Click the button below to authenticate using Salesforce.</p>
+        <a href="#" class="btn btn-primary" id="sso-button">Sign in with Salesforce</a>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const ssoButton = document.getElementById("sso-button");
+            const clientId = "YOUR_SALESFORCE_CLIENT_ID";
+            const redirectUri = "YOUR_REDIRECT_URI";
+            const authorizationBaseURL = "https://login.salesforce.com/services/oauth2/authorize";
+            
+            ssoButton.addEventListener("click", function() {
+                const url = `${authorizationBaseURL}?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+                window.location.href = url;
+            });
+        });
+    </script>
+</body>
+</html>
